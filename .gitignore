@@ -127,3 +127,7 @@ dmypy.json
 
 # Pyre type checker
 .pyre/
+.vscode/settings.json
+
+conda_env_queueing_process/
+.vscode/launch.json
