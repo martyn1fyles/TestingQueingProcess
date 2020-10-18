@@ -206,5 +206,12 @@ class queueing_process():
         delay_to_column = self.applicant_info.loc[day_index, delay_to_column]
         return delay_to_column - delay_from_column
     
-    
+    def get_prob_getting_tested(self, time_entered_queue: int):
+        """Returns the probability of getting tested if you join the queue on a specified day
 
+        Args:
+            time_entered_queue (int): The day of interest
+        """
+        valid_individuals = (self.applicant_info.time_entered_queue == time_entered_queue) & (self.applicant_info.waiting_to_be_swabbed == False)
+        left_queue_not_swabbed = self.applicant_info[valid_individuals].left_queue_not_swabbed
+        return 1 - left_queue_not_swabbed.mean()
