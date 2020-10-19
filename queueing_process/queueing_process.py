@@ -20,6 +20,7 @@ class queueing_process():
         # model variables
         self.time = 0
         self.total_applicants = sum(demand)
+        self.todays_leavers = None
 
         self.preallocate_applicant_rows()
         self.preallocate_queue_rows()
