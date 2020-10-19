@@ -1,6 +1,8 @@
 import queueing_process as qp
 import numpy as np
 
+# a chunk of code that can be used to run the model in a way that is suitable for debugging
+
 def symptom_onset_to_joining_queue():
     return 2
 

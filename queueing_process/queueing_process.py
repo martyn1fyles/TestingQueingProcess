@@ -99,10 +99,16 @@ class queueing_process():
         """
 
         # These people will leave the queue today
-        leavers = (self.applicant_info.time_will_leave_queue == self.time) & (self.applicant_info.waiting_to_be_swabbed == True)
+        leavers = (self.applicant_info.time_will_leave_queue <= self.time) & (self.applicant_info.waiting_to_be_swabbed == True)
 
         # record the number of people who carry over to the next day
-        self.queue_info.loc[self.time, ['spillover_to_next_day', 'number_left_queue_not_tested']] = [len(self.todays_applicants), sum(leavers)]
+        if self.todays_capacity > len(self.todays_applicants):
+            spillover_to_next_day = 0
+        else:
+            spillover_to_next_day = len(self.todays_applicants) - sum(leavers) - self.todays_capacity
+        
+        #
+        self.queue_info.loc[self.time, ['spillover_to_next_day', 'number_left_queue_not_tested']] = [spillover_to_next_day, sum(leavers)]
 
         # Set their waiting to be swabbed status to False
         self.applicant_info.loc[leavers, ['waiting_to_be_swabbed', 'left_queue_not_swabbed']] = [False, True]
@@ -176,8 +182,8 @@ class queueing_process():
         """
 
         # steps required to simulate one day
-        self.update_queue_leaver_status()
         self.update_new_joiners()
+        self.update_queue_leaver_status()
         self.process_day_of_queue()
 
         # make a nice little status update
