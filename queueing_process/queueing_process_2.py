@@ -2,6 +2,9 @@ import numpy as np
 import pandas as pd
 import numpy.random as npr
 
+def increment(x):
+    return x + 1
+
 class queueing_process():
 
     def __init__(self,
