@@ -100,17 +100,20 @@ class queueing_process():
         self.applicant_info.loc[new_applicants, 'waiting_to_be_swabbed'] = True
         
     def update_queue_leaver_status(self):
-        """These individuals have been in the queue too long. They are no longer trying/able to get a swab.
+        """These individuals have been in the queue too long. They are no longer trying/able to get a swab, we update their status'
+        to reflect this.
         """
 
         # These people will leave the queue today
         self.leavers = (self.applicant_info.time_will_leave_queue <= self.time) & (self.applicant_info.waiting_to_be_swabbed == True)
 
-
         # record the number of people who carry over to the next day
         if self.todays_capacity > len(self.todays_applicants):
+
             spillover_to_next_day = 0
+
         else:
+            # todays demand - minus those who were served (capacity) - those who leave the queue not being served
             spillover_to_next_day = len(self.todays_applicants) - sum(self.leavers) - self.todays_capacity
         
         #
@@ -188,6 +191,9 @@ class queueing_process():
 
     def simulate_one_day(self, verbose = True):
         """Simulates one day of the queue.
+
+        Args:
+            verbose (bool, optional): If true, output simulation progress. Defaults to True.
         """
 
         # steps required to simulate one day
@@ -195,19 +201,21 @@ class queueing_process():
         self.update_queue_leaver_status()
         self.process_day_of_queue()
 
+        # update the model time
+        self.time += 1
+
         # make a nice little status update
         if verbose:
             print(f'Model time {self.time}, progress: {round((self.time + 1) / self.days_to_simulate * 100)}%', end = '\r')
 
-    def run_simulation(self):
+    def run_simulation(self, verbose = True):
         """Runs the queueing process model.
         """
 
         while self.time < self.days_to_simulate:
 
-            self.simulate_one_day()
+            self.simulate_one_day(verbose = verbose)
 
-            self.time += 1
     
     def get_delays_for(self, time_entered_queue: int, delay_from_column: str, delay_to_column: str):
         """Return a list of the delays between two timepoints who joined on a specified day
