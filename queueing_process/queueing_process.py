@@ -1,21 +1,21 @@
 import numpy as np
 import pandas as pd
 import numpy.random as npr
+import matplotlib.pyplot as plt
 
 # just to check that testing is working
 def increment(x):
     return x + 1
 
-class queueing_process():
+class queueing_process_deterministic():
 
     def __init__(self,
-        days_to_simulate: int,
         capacity: list,
         demand: list ,
         symptom_onset_to_joining_queue_dist,
-        test_processing_delay_dist):
+        test_processing_delay_dist,
+        additional_attributes = {}):
 
-        self.days_to_simulate = days_to_simulate
         self.capacity = capacity
         self.demand = demand
         self.symptom_onset_to_joining_queue_dist = symptom_onset_to_joining_queue_dist
@@ -25,6 +25,12 @@ class queueing_process():
         self.time = 0
         self.total_applicants = sum(demand)
         self.todays_leavers = None
+        # TODO: add exception if capacity is not the same length as demand
+        self.days_to_simulate = len(demand)
+
+        # create additional attributes where necessary
+        for key in additional_attributes:
+            setattr(self, key, additional_attributes[key])
 
         self.preallocate_applicant_rows()
         self.preallocate_queue_rows()
@@ -148,6 +154,7 @@ class queueing_process():
             self.queue_info.loc[self.queue_info.time == self.time, ['capacity_exceeded', 'capacity_exceeded_by']] = [False, 0]
 
         else:
+            
             # then the capacity was exceeded, and only some of todays applicants will be processed
             capacity_exceeded_by = number_applicants_today - self.todays_capacity
 
@@ -240,7 +247,51 @@ class queueing_process():
         left_queue_not_swabbed = self.applicant_info[valid_individuals].left_queue_not_swabbed
         return 1 - left_queue_not_swabbed.mean()
 
-class dynamic_queueing_process(queueing_process):
+    def return_capacity_hitting_time(self):
+        """Return the time at which capacity is exceeded, if it has been exceeded
+
+        Returns:
+            int: The time at which capacity was exceeded
+        """
+
+        if any(self.queue_info.capacity_exceeded):
+
+            return self.queue_info.loc[self.queue_info.capacity_exceeded == True, 'time'].min()
+        
+        else:
+
+            return None
+
+    def plot_summary_statistics(self):
+        """
+        Produces a plot of some of the model summary statistics
+        """
+        plt.plot('time','capacity', data = self.queue_info)
+        plt.plot('time','spillover_to_next_day', data = self.queue_info)
+        plt.plot('time','number_left_queue_not_tested', data = self.queue_info)
+        plt.plot('time','new_applicants', data = self.queue_info)
+        plt.title('Queueing process summary statistics')
+        plt.xlabel('Time of joining queue (days)')
+        plt.legend(['Capacity',
+                    #'Amount capacity exceeded by',
+                    'Spillover to next day',
+                    'Number left queue not tested',
+                    'New applicants'])
+        plt.xlim(0, self.days_to_simulate - 10)
+        plt.vlines(x = self.return_capacity_hitting_time(), ymin = 0, ymax = float('Inf'), linestyle = '--', alpha = 0.7)
+
+
+    def plot_prob_getting_tested(self):
+
+        plt.plot([self.get_prob_getting_tested(time) for time in range(self.days_to_simulate - 10)])
+        plt.title('Probability of successfully getting tested')
+        plt.xlabel('Time of joining queue (days)')
+        plt.ylabel('$P$(getting tested)')
+        plt.ylim(0,1.1)
+        plt.vlines(x = self.return_capacity_hitting_time(), ymin = 0, ymax = 1, linestyle = '--', alpha = 0.7)
+
+
+class dynamic_queueing_process(queueing_process_deterministic):
 
     def __init__(self,
         test_processing_delay_dist,
@@ -334,3 +385,103 @@ class dynamic_queueing_process(queueing_process):
         }
         
         return output
+
+class deterministic_area(queueing_process_deterministic):
+
+    def __init__(
+        self,
+        area_name,
+        population_size,
+        demand,
+        capacity,
+        symptom_onset_to_joining_queue_dist,
+        test_processing_delay_dist):
+        """A queueing process model that represents an area with associated population weighting
+
+        Args:
+            area_name (str): The name of the area
+            population_size (int): The size of the population in the area 
+            demand (list[int]): The deterministic demand over time
+            capacity (list[int]): The deterministic capacity over time
+            symptom_onset_to_joining_queue_dist (func): A function that returns an (int) delay
+            test_processing_delay_dist (func): A function that returns an (int) delay
+        """
+
+        super().__init__(
+            demand=demand,
+            capacity=capacity,
+            symptom_onset_to_joining_queue_dist=symptom_onset_to_joining_queue_dist,
+            test_processing_delay_dist=test_processing_delay_dist
+        )
+
+        self.area_name = area_name
+        self.population_size = population_size
+
+    def return_weighted_prob_getting_tested(self, max_time):
+        """Computes the average probability of getting tested, weighted by the size of the population.
+        """
+
+        if self.time < self.days_to_simulate:
+            return('Model simulation has not yet been executed')
+        else:
+            get_tested_probs = np.array([self.get_prob_getting_tested(time) for time in range(0, max_time)])
+            return (get_tested_probs * self.population_size).sum()
+
+
+class deterministic_area_collection():
+
+    def __init__(self,
+        test_processing_delay_dist,
+        symptom_onset_to_joining_queue_dist):
+
+        # areas is a list containing all configured areas
+        self.areas = []
+
+        # delay distributions are assumed to be global
+        self.test_processing_delay_dist = test_processing_delay_dist
+        self.symptom_onset_to_joining_queue_dist = symptom_onset_to_joining_queue_dist
+
+    def add_area(
+        self,
+        area_name,
+        population_size,
+        demand,
+        capacity):
+        """Creates an deterministic queue area
+
+        Args:
+            area_name (str): The name of the area
+            population_size (int): The size of the population in the area 
+            demand (list[int]): The deterministic demand over time
+            capacity (list[int]): The deterministic capacity over time
+        """
+
+        self.areas.append(
+            deterministic_area(
+                area_name=area_name,
+                population_size=population_size,
+                demand=demand,
+                capacity=capacity,
+                symptom_onset_to_joining_queue_dist=self.symptom_onset_to_joining_queue_dist,
+                test_processing_delay_dist=self.test_processing_delay_dist
+            )
+        )
+
+    def simulate_all_areas(self):
+        """Simulates the deterministic epidemic in each area
+        """
+
+        for area in self.areas:
+            area.run_simulation()
+
+    def evaluate_objective_function(self, max_time: int):
+        """Evaluates the objective function to determine how the overall distribution of tests performed
+
+        Returns:
+            float: The average probability of getting tested weighted across areas by population
+        """
+
+        return sum([
+            area.return_weighted_prob_getting_tested(max_time)
+            for area in self.areas
+        ])
